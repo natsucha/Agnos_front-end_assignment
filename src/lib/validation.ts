@@ -5,7 +5,7 @@ const requiredText = (label: string) =>
 
 export const patientSchema = z.object({
   firstName: requiredText("First Name"),
-  middleName: z.string().optional(),
+  middleName: z.string(),
   lastName: requiredText("Last Name"),
   dateOfBirth: requiredText("Date of Birth"),
   gender: requiredText("Gender"),
@@ -18,9 +18,9 @@ export const patientSchema = z.object({
   address: requiredText("Address"),
   preferredLanguage: requiredText("Preferred Language"),
   nationality: requiredText("Nationality"),
-  emergencyContactName: z.string().optional(),
-  emergencyContactRelationship: z.string().optional(),
-  religion: z.string().optional()
+  emergencyContactName: z.string(),
+  emergencyContactRelationship: z.string(),
+  religion: z.string()
 });
 
 export type PatientFormValues = z.infer<typeof patientSchema>;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Clock3, Wifi, WifiOff, Activity, Users } from "lucide-react";
 import { useStaffSocket } from "@/hooks/useStaffSocket";
 import { PatientData, PatientSession, SessionStatus, emptyPatient } from "@/types/patient";
@@ -42,17 +42,12 @@ export default function StaffView() {
     return () => clearInterval(timer);
   }, []);
 
-  const sorted = useMemo(
-    () => [...sessions].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()),
-    [sessions]
-  );
-
   useEffect(() => {
-    if (selectedId && sorted.some((s) => s.id === selectedId)) return;
-    setSelectedId(sorted[0]?.id ?? null);
-  }, [selectedId, sorted]);
+    if (selectedId && sessions.some((s) => s.id === selectedId)) return;
+    setSelectedId(sessions[0]?.id ?? null);
+  }, [selectedId, sessions]);
 
-  const selected = sorted.find((s) => s.id === selectedId) ?? null;
+  const selected = sessions.find((s) => s.id === selectedId) ?? null;
   const data = selected?.data ?? emptyPatient;
 
   return (
@@ -63,7 +58,7 @@ export default function StaffView() {
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">Agnos • Staff</p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Patient Monitoring</h1>
             <p className="mt-1 text-sm text-slate-500">
-              {sorted.length} patient session{sorted.length === 1 ? "" : "s"} updating in real time.
+              {sessions.length} patient session{sessions.length === 1 ? "" : "s"} updating in real time.
             </p>
           </div>
           <div className="flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-slate-200">
@@ -79,8 +74,8 @@ export default function StaffView() {
               <h2 className="text-sm font-bold text-slate-900">Sessions</h2>
             </div>
             <div className="max-h-[70vh] divide-y divide-slate-100 overflow-y-auto">
-              {sorted.length === 0 && <p className="p-4 text-sm text-slate-400">Waiting for patients to join…</p>}
-              {sorted.map((s) => {
+              {sessions.length === 0 && <p className="p-4 text-sm text-slate-400">Waiting for patients to join…</p>}
+              {sessions.map((s) => {
                 const status = deriveStatus(s, now);
                 const secondsAgo = Math.max(0, Math.floor((now - new Date(s.last_activity).getTime()) / 1000));
                 return (
