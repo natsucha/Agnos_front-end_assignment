@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: agnos-socket-server
+    runtime: node
+    buildCommand: npm install && npx tsc -p server/tsconfig.json
+    startCommand: node dist-server/index.js
+    envVars:
+      - key: FRONTEND_URL
+        sync: false
