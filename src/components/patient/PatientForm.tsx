@@ -3,32 +3,69 @@
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, Loader2, Wifi, WifiOff } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { patientSchema, PatientFormValues } from "@/lib/validation";
 import { emptyPatient } from "@/types/patient";
 import { usePatientSocket } from "@/hooks/usePatientSocket";
 import { getOrCreatePatientSessionId } from "@/lib/session";
+import { ConnectionBadge } from "@/components/ui/ConnectionBadge";
 
-const fields: Array<{ name: keyof PatientFormValues; label: string; placeholder?: string; required?: boolean; type?: string }> = [
+const NATIONALITY_OPTIONS = [
+  "Thai", "Chinese", "Japanese", "Korean", "American", "British", "Australian",
+  "Indian", "Myanmar", "Laotian", "Cambodian", "Vietnamese", "Filipino", "Malaysian", "Singaporean", "Other"
+];
+const RELIGION_OPTIONS = ["Buddhist", "Christian", "Muslim", "Hindu", "Sikh", "Other", "Prefer not to say"];
+const RELATIONSHIP_OPTIONS = ["Spouse", "Parent", "Child", "Sibling", "Relative", "Friend", "Other"];
+
+type InputField = {
+  kind?: "input";
+  name: keyof PatientFormValues;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  type?: string;
+  maxLength?: number;
+  inputMode?: "tel" | "email" | "text";
+};
+type SelectField = {
+  kind: "select";
+  name: keyof PatientFormValues;
+  label: string;
+  placeholder: string;
+  required?: boolean;
+  options: string[];
+};
+
+const fields: Array<InputField | SelectField> = [
   { name: "firstName", label: "First Name", placeholder: "Enter first name", required: true },
   { name: "middleName", label: "Middle Name", placeholder: "Optional" },
   { name: "lastName", label: "Last Name", placeholder: "Enter last name", required: true },
   { name: "dateOfBirth", label: "Date of Birth", type: "date", required: true },
-  { name: "phoneNumber", label: "Phone Number", placeholder: "+66 81 234 5678", required: true },
+  { name: "phoneNumber", label: "Phone Number", placeholder: "+66 81 234 5678", required: true, maxLength: 20, inputMode: "tel" },
   { name: "email", label: "Email", placeholder: "patient@example.com", required: true },
   { name: "address", label: "Address", placeholder: "Enter address", required: true },
-  { name: "nationality", label: "Nationality", placeholder: "e.g. Thai", required: true },
+  { name: "nationality", label: "Nationality", kind: "select", placeholder: "Select nationality", required: true, options: NATIONALITY_OPTIONS },
   { name: "emergencyContactName", label: "Emergency Contact Name", placeholder: "Optional" },
-  { name: "emergencyContactRelationship", label: "Emergency Contact Relationship", placeholder: "Optional" },
-  { name: "religion", label: "Religion", placeholder: "Optional" }
+  { name: "emergencyContactRelationship", label: "Emergency Contact Relationship", kind: "select", placeholder: "Select relationship (optional)", options: RELATIONSHIP_OPTIONS },
+  { name: "religion", label: "Religion", kind: "select", placeholder: "Select religion (optional)", options: RELIGION_OPTIONS }
 ];
+
+const sanitizePhoneNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
+  e.target.value = e.target.value.replace(/[^0-9+()\-\s]/g, "").slice(0, 20);
+};
 
 export default function PatientForm() {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const { session, connected, updatePatient } = usePatientSocket(sessionId);
+  const { session, connectionStatus, updatePatient } = usePatientSocket(sessionId);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [justUpdated, setJustUpdated] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const updatedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (updatedTimeoutRef.current) clearTimeout(updatedTimeoutRef.current);
+  }, []);
 
   useEffect(() => {
     setSessionId(getOrCreatePatientSessionId());
@@ -66,10 +103,19 @@ export default function PatientForm() {
   }, [values, submitted, updatePatient]);
 
   const onSubmit = async (data: PatientFormValues) => {
+    if (saving) return;
     setSaving(true);
+    setJustUpdated(false);
+    const wasAlreadySubmitted = submitted;
     try {
       await updatePatient(data, "submitted", new Date().toISOString());
+      await new Promise((resolve) => setTimeout(resolve, 400));
       setSubmitted(true);
+      if (wasAlreadySubmitted) {
+        setJustUpdated(true);
+        if (updatedTimeoutRef.current) clearTimeout(updatedTimeoutRef.current);
+        updatedTimeoutRef.current = setTimeout(() => setJustUpdated(false), 1500);
+      }
     } finally {
       setSaving(false);
     }
@@ -89,11 +135,18 @@ export default function PatientForm() {
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Patient Information</h1>
             <p className="mt-1 text-sm text-slate-500">Please enter your information below.</p>
           </div>
-          <div className="flex items-center gap-2 self-start rounded-full bg-white px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-slate-200">
-            {connected ? <Wifi size={14} className="text-emerald-600" /> : <WifiOff size={14} className="text-slate-400" />}
-            {connected ? "Connected" : "Offline demo"}
-          </div>
+          <ConnectionBadge status={connectionStatus} />
         </header>
+
+        {submitted && (
+          <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">
+            <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
+            <div>
+              <p className="text-sm font-semibold">Your information has been submitted successfully.</p>
+              <p className="text-xs text-emerald-700">You can still update your details below if anything changes.</p>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
           <div className="grid gap-5 sm:grid-cols-2">
@@ -102,7 +155,23 @@ export default function PatientForm() {
                 <span className="text-sm font-semibold text-slate-800">
                   {field.label} {field.required && <span className="text-red-500">*</span>}
                 </span>
-                <input {...register(field.name)} type={field.type ?? "text"} placeholder={field.placeholder} className={inputClass(field.name)} />
+                {field.kind === "select" ? (
+                  <select {...register(field.name)} className={inputClass(field.name)} defaultValue="">
+                    <option value="" disabled={field.required}>{field.placeholder}</option>
+                    {field.options.map((option) => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    {...register(field.name, field.name === "phoneNumber" ? { onChange: sanitizePhoneNumber } : undefined)}
+                    type={field.type ?? "text"}
+                    inputMode={field.inputMode}
+                    maxLength={field.maxLength}
+                    placeholder={field.placeholder}
+                    className={inputClass(field.name)}
+                  />
+                )}
                 {errors[field.name] && <span className="mt-1 block text-xs text-red-600">{errors[field.name]?.message}</span>}
               </label>
             ))}
@@ -132,16 +201,15 @@ export default function PatientForm() {
           </div>
 
           <div className="mt-8 flex flex-col gap-4 border-t border-slate-100 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-slate-500">
-              {submitted ? (
-                <span className="inline-flex items-center gap-2 font-medium text-emerald-700"><CheckCircle2 size={16} /> Information submitted successfully.</span>
-              ) : (
-                "Your information is synchronized securely in real time."
-              )}
-            </div>
-            <button type="submit" disabled={saving} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <div className="text-xs text-slate-500">Your information is synchronized securely in real time.</div>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+            >
               {saving && <Loader2 size={16} className="animate-spin" />}
-              {submitted ? "Update Information" : "Submit Information"}
+              {!saving && justUpdated && <CheckCircle2 size={16} />}
+              {saving ? "Saving..." : justUpdated ? "Updated!" : submitted ? "Update Information" : "Submit Information"}
             </button>
           </div>
         </form>

@@ -1,16 +1,24 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getSocket } from "@/lib/socket";
 import { PatientSession } from "@/types/patient";
+import type { ConnectionStatus } from "./connectionStatus";
 
 export function useStaffSocket() {
   const [sessions, setSessions] = useState<PatientSession[]>([]);
-  const [connected, setConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("connecting");
+  const hasConnectedOnce = useRef(false);
 
   useEffect(() => {
     const s = getSocket();
-    const onConnect = () => setConnected(true);
-    const onDisconnect = () => setConnected(false);
+    // Re-joins on every "connect", including reconnects, so a dropped connection
+    // doesn't leave this dashboard silently out of the "staff" broadcast room.
+    const onConnect = () => {
+      hasConnectedOnce.current = true;
+      setConnectionStatus("connected");
+      s.emit("staff:join");
+    };
+    const onDisconnect = () => setConnectionStatus(hasConnectedOnce.current ? "reconnecting" : "connecting");
     const onSnapshot = (list: PatientSession[]) => setSessions(list);
     const onUpdate = (updated: PatientSession) =>
       setSessions((prev) => {
@@ -25,8 +33,8 @@ export function useStaffSocket() {
     s.on("disconnect", onDisconnect);
     s.on("sessions:snapshot", onSnapshot);
     s.on("session:update", onUpdate);
-    s.connect();
-    s.emit("staff:join");
+    if (s.connected) onConnect();
+    else s.connect();
 
     return () => {
       s.off("connect", onConnect);
@@ -36,5 +44,5 @@ export function useStaffSocket() {
     };
   }, []);
 
-  return { sessions, connected };
+  return { sessions, connectionStatus };
 }

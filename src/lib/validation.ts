@@ -13,7 +13,7 @@ export const patientSchema = z.object({
     .string()
     .trim()
     .min(1, "Phone Number is required")
-    .regex(/^[0-9+()\\-\\s]{8,20}$/, "Please enter a valid phone number"),
+    .regex(/^[0-9+()\-\s]{8,20}$/, "Please enter a valid phone number"),
   email: z.string().trim().min(1, "Email is required").email("Please enter a valid email"),
   address: requiredText("Address"),
   preferredLanguage: requiredText("Preferred Language"),

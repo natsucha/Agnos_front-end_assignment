@@ -8,7 +8,7 @@ export default function Home() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-600">Agnos</p>
           <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">Patient Real-Time System</h1>
           <p className="mt-3 max-w-2xl text-slate-600">
-            Candidate assignment demo with a responsive patient form and real-time staff monitoring.
+            Real-time patient intake and staff monitoring system.
           </p>
         </div>
         <div className="grid gap-5 sm:grid-cols-2">

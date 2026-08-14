@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock3, Wifi, WifiOff, Activity, Users } from "lucide-react";
+import { Clock3, Activity, Users } from "lucide-react";
 import { useStaffSocket } from "@/hooks/useStaffSocket";
 import { PatientData, PatientSession, SessionStatus, emptyPatient } from "@/types/patient";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { ConnectionBadge } from "@/components/ui/ConnectionBadge";
 
 const displayFields: Array<[keyof PatientData, string]> = [
   ["firstName", "First Name"],
@@ -33,7 +34,7 @@ function patientName(data: PatientData) {
 }
 
 export default function StaffView() {
-  const { sessions, connected } = useStaffSocket();
+  const { sessions, connectionStatus } = useStaffSocket();
   const [now, setNow] = useState(Date.now());
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -50,6 +51,21 @@ export default function StaffView() {
   const selected = sessions.find((s) => s.id === selectedId) ?? null;
   const data = selected?.data ?? emptyPatient;
 
+  const counts = sessions.reduce(
+    (acc, s) => {
+      acc[deriveStatus(s, now)]++;
+      return acc;
+    },
+    { active: 0, inactive: 0, submitted: 0 }
+  );
+
+  const summary: Array<{ label: string; value: number }> = [
+    { label: "Total", value: sessions.length },
+    { label: "Active", value: counts.active },
+    { label: "Inactive", value: counts.inactive },
+    { label: "Submitted", value: counts.submitted }
+  ];
+
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
@@ -61,11 +77,17 @@ export default function StaffView() {
               {sessions.length} patient session{sessions.length === 1 ? "" : "s"} updating in real time.
             </p>
           </div>
-          <div className="flex items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-medium shadow-sm ring-1 ring-slate-200">
-            {connected ? <Wifi size={14} className="text-emerald-600" /> : <WifiOff size={14} className="text-slate-400" />}
-            {connected ? "Realtime connected" : "Realtime unavailable"}
-          </div>
+          <ConnectionBadge status={connectionStatus} />
         </header>
+
+        <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {summary.map((item) => (
+            <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p className="text-xs font-medium text-slate-500">{item.label}</p>
+              <p className="mt-1 text-2xl font-bold text-slate-950">{item.value}</p>
+            </div>
+          ))}
+        </div>
 
         <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -74,7 +96,13 @@ export default function StaffView() {
               <h2 className="text-sm font-bold text-slate-900">Sessions</h2>
             </div>
             <div className="max-h-[70vh] divide-y divide-slate-100 overflow-y-auto">
-              {sessions.length === 0 && <p className="p-4 text-sm text-slate-400">Waiting for patients to join…</p>}
+              {sessions.length === 0 && (
+                <div className="flex flex-col items-center gap-2 p-10 text-center">
+                  <Users size={28} className="text-slate-300" />
+                  <p className="text-sm font-medium text-slate-600">Waiting for patient session</p>
+                  <p className="text-xs text-slate-400">New patients will appear here as soon as they start filling out the form.</p>
+                </div>
+              )}
               {sessions.map((s) => {
                 const status = deriveStatus(s, now);
                 const secondsAgo = Math.max(0, Math.floor((now - new Date(s.last_activity).getTime()) / 1000));
@@ -99,8 +127,11 @@ export default function StaffView() {
 
           <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             {!selected ? (
-              <div className="flex min-h-[300px] items-center justify-center p-10 text-center text-sm text-slate-400">
-                Select a patient session to view details.
+              <div className="flex min-h-[300px] flex-col items-center justify-center gap-2 p-10 text-center">
+                <Activity size={28} className="text-slate-300" />
+                <p className="text-sm font-medium text-slate-600">
+                  {sessions.length === 0 ? "No active patient sessions yet" : "Select a patient session to view details"}
+                </p>
               </div>
             ) : (
               <>
